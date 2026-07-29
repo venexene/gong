@@ -10,10 +10,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/venexene/wbl3-delayed-notifier/internal/config"
-	"github.com/venexene/wbl3-delayed-notifier/internal/handler"
-	"github.com/venexene/wbl3-delayed-notifier/internal/queue"
-	"github.com/venexene/wbl3-delayed-notifier/internal/storage"
+	"github.com/venexene/gong/internal/config"
+	"github.com/venexene/gong/internal/handler"
+	"github.com/venexene/gong/internal/queue"
+	"github.com/venexene/gong/internal/storage"
 )
 
 func main() {

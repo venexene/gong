@@ -1,4 +1,4 @@
-module github.com/venexene/wbl3-delayed-notifier
+module github.com/venexene/gong
 
 go 1.25.0
 

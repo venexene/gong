@@ -12,7 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/venexene/wbl3-delayed-notifier/internal/storage"
+	"github.com/venexene/gong/internal/storage"
 )
 
 func init() {

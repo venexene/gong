@@ -11,7 +11,7 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	"github.com/venexene/wbl3-delayed-notifier/internal/storage"
+	"github.com/venexene/gong/internal/storage"
 )
 
 // Publisher enqueues a notification for delayed delivery.

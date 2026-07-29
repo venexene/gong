@@ -1,31 +1,77 @@
-version: "3.9"
-
 services:
   postgres:
-    image: postgres:15
-    container_name: notifier_postgres
+    image: postgres:18
+    container_name: gong_postgres
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: ${DB_NAME}
-    ports:
-      - "${DB_PORT}:5432"
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - pg_data:/var/lib/postgresql
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notifications-network
 
   rabbitmq:
     image: rabbitmq:3-management
-    container_name: notifier_rabbitmq
+    container_name: gong_rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBIT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBIT_PASSWORD}
     ports:
-      - "${RABBIT_PORT}:5672"
       - "15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - notifications-network
+
+  app:
+    build:
+      context: .
+    container_name: gong-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:${HTTP_PORT}/test_server || exit 1"]
+      interval: 10s
+      timeout: 8s
+      retries: 3
+      start_period: 10s
+    environment:
+      HTTP_PORT: ${HTTP_PORT}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      RABBIT_HOST: rabbitmq
+      RABBIT_PORT: 5672
+      RABBIT_USER: ${RABBIT_USER}
+      RABBIT_PASSWORD: ${RABBIT_PASSWORD}
+    ports:
+      - "${HTTP_PORT}:${HTTP_PORT}"
+    networks:
+      - notifications-network
+    restart: unless-stopped
 
 volumes:
   pg_data:
   rabbitmq_data:
+
+networks:
+  notifications-network:
+    driver: bridge
+

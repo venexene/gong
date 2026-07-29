@@ -8,8 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
-	"github.com/venexene/wbl3-delayed-notifier/internal/queue"
-	"github.com/venexene/wbl3-delayed-notifier/internal/storage"
+	"github.com/venexene/gong/internal/queue"
+	"github.com/venexene/gong/internal/storage"
 )
 
 // HealthCheck returns a simple health-check response.

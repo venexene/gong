@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/venexene/wbl3-delayed-notifier/internal/storage"
+	"github.com/venexene/gong/internal/storage"
 )
 
 func TestCalcRetryDelay(t *testing.T) {
