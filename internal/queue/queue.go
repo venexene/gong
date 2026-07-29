@@ -1,3 +1,4 @@
+// Package queue provides RabbitMQ-backed delayed notification delivery with exponential retry.
 package queue
 
 import (
@@ -13,20 +14,44 @@ import (
 	"github.com/venexene/wbl3-delayed-notifier/internal/storage"
 )
 
+// Publisher enqueues a notification for delayed delivery.
+type Publisher interface {
+	Publish(n storage.Notification) error
+}
+
+// Notifier delivers a notification through a specific channel.
+type Notifier interface {
+	Send(n storage.Notification) error
+}
+
+// LogNotifier is a Notifier that logs the notification to stdout.
+type LogNotifier struct{}
+
+// Send logs the notification details and always returns nil.
+func (l LogNotifier) Send(n storage.Notification) error {
+	log.Printf("[SENT] target=%s message=%s id=%s", n.Target, n.Message, n.ID)
+	return nil
+}
+
+// RabbitMQ manages AMQP queues for delayed and retried notifications.
 type RabbitMQ struct {
 	Conn       *amqp.Connection
 	Channel    *amqp.Channel
-	MainQueue  amqp.Queue
-	DelayQueue amqp.Queue
-	RetryQueue amqp.Queue
+	MainQueue  amqp.Queue // notifications - processed by the consumer.
+	DelayQueue amqp.Queue // notifications_delay - TTL-based delay via DLX.
+	RetryQueue amqp.Queue // notifications_retry - exponential backoff via DLX.
 }
 
 const (
+	// BaseRetryDelay is the initial delay before the first retry.
 	BaseRetryDelay = 5 * time.Second
-	MaxRetryDelay  = 10 * time.Minute
-	MaxRetries     = 10
+	// MaxRetryDelay is the upper cap for exponential backoff.
+	MaxRetryDelay = 10 * time.Minute
+	// MaxRetries is the number of delivery attempts before marking as failed.
+	MaxRetries = 10
 )
 
+// New connects to RabbitMQ at the given URL and declares all required queues.
 func New(url string) (*RabbitMQ, error) {
 	conn, err := amqp.Dial(url)
 	if err != nil {
@@ -91,7 +116,7 @@ func New(url string) (*RabbitMQ, error) {
 	}, nil
 }
 
-
+// Publish enqueues a notification for delayed delivery.
 func (r *RabbitMQ) Publish(n storage.Notification) error {
 	body, err := json.Marshal(n)
 	if err != nil {
@@ -116,7 +141,7 @@ func (r *RabbitMQ) Publish(n storage.Notification) error {
 	)
 }
 
-
+// PublishRetry enqueues a failed notification for retry with exponential backoff.
 func (r *RabbitMQ) PublishRetry(n storage.Notification, retry int) error {
 	body, err := json.Marshal(n)
 	if err != nil {
@@ -140,91 +165,97 @@ func (r *RabbitMQ) PublishRetry(n storage.Notification, retry int) error {
 	)
 }
 
+// Consume starts a blocking message consumer on the main queue.
+func (r *RabbitMQ) Consume(ctx context.Context, db *storage.Postgres, notifier Notifier) {
+	msgs, err := r.Channel.Consume(
+		r.MainQueue.Name,
+		"",
+		false,
+		false,
+		false,
+		false,
+		nil,
+	)
+	if err != nil {
+		log.Fatalf("Failed to consume: %v", err)
+	}
 
-func (r *RabbitMQ) Consume(ctx context.Context, db *storage.Postgres) {
-    msgs, err := r.Channel.Consume(
-        r.MainQueue.Name,
-        "",
-        false,
-        false,
-        false,
-        false,
-        nil,
-    )
-    if err != nil {
-        log.Fatalf("Failed to consume: %v", err)
-    }
+	log.Println("Worker is consuming messages...")
 
-    log.Println("Worker is consuming messages...")
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Consumer stopping...")
+			return
 
-    for {
-        select {
-        case <-ctx.Done():
-            log.Println("Consumer stopping...")
-            return
+		case msg, ok := <-msgs:
+			if !ok {
+				log.Println("Message channel closed")
+				return
+			}
 
-        case msg, ok := <-msgs:
-            if !ok {
-                log.Println("Message channel closed")
-                return
-            }
+			var n storage.Notification
+			if err := json.Unmarshal(msg.Body, &n); err != nil {
+				log.Println("Invalid message body")
+				msg.Nack(false, false)
+				continue
+			}
 
-            var n storage.Notification
-            if err := json.Unmarshal(msg.Body, &n); err != nil {
-                log.Println("Invalid message body")
-                msg.Nack(false, false)
-                continue
-            }
+			current, err := db.GetByID(ctx, n.ID)
+			if err != nil {
+				log.Printf("Notification %s not found in DB", n.ID)
+				msg.Ack(false)
+				continue
+			}
 
-            current, err := db.GetByID(ctx, n.ID)
-            if err != nil {
-                log.Printf("Notification %s not found in DB", n.ID)
-                msg.Ack(false)
-                continue
-            }
+			if current.Status == "canceled" || current.Status == "sent" {
+				msg.Ack(false)
+				continue
+			}
 
-            if current.Status == "canceled" || current.Status == "sent" {
-                msg.Ack(false)
-                continue
-            }
+			if current.Retry >= MaxRetries {
+				log.Printf("Notification %s failed permanently", n.ID)
+				if err := db.MarkFailed(ctx, n.ID); err != nil {
+					log.Printf("DB MarkFailed error: %v", err)
+				}
+				msg.Ack(false)
+				continue
+			}
 
-            if current.Retry >= MaxRetries {
-                log.Printf("Notification %s failed permanently", n.ID)
-                if err := db.MarkFailed(ctx, n.ID); err != nil {
-                    log.Printf("DB MarkFailed error: %v", err)
-                }
-                msg.Ack(false)
-                continue
-            }
+			if err := db.MarkProcessing(ctx, n.ID); err != nil {
+				log.Printf("Cannot mark processing: %v", err)
+				msg.Nack(false, true)
+				continue
+			}
 
-            if err := db.MarkProcessing(ctx, n.ID); err != nil {
-                log.Printf("Cannot mark processing: %v", err)
-                msg.Nack(false, true)
-                continue
-            }
+			if err := notifier.Send(n); err != nil {
+				log.Printf("Send failed, retrying: %v", err)
+				if err := db.IncrementRetry(ctx, n.ID); err != nil {
+					log.Printf("DB IncrementRetry error: %v", err)
+				}
+				updated, err := db.GetByID(ctx, n.ID)
+				if err != nil {
+					log.Printf("DB GetByID error: %v", err)
+					msg.Nack(false, true)
+					continue
+				}
+				if err := r.PublishRetry(*updated, updated.Retry); err != nil {
+					log.Printf("PublishRetry error (will requeue): %v", err)
+					msg.Nack(false, true)
+					continue
+				}
+				msg.Ack(false)
+				continue
+			}
 
-            if err := sendNotification(n); err != nil {
-                log.Printf("Send failed, retrying: %v", err)
-                if err := db.IncrementRetry(ctx, n.ID); err != nil {
-                    log.Printf("DB IncrementRetry error: %v", err)
-                }
-                updated, err := db.GetByID(ctx, n.ID)
-                if err == nil {
-                    _ = r.PublishRetry(*updated, updated.Retry)
-                }
-                msg.Ack(false)
-                continue
-            }
+			if err := db.MarkSent(ctx, n.ID); err != nil {
+				log.Printf("DB MarkSent error: %v", err)
+			}
 
-            if err := db.MarkSent(ctx, n.ID); err != nil {
-                log.Printf("DB MarkSent error: %v", err)
-            }
-
-            msg.Ack(false)
-        }
-    }
+			msg.Ack(false)
+		}
+	}
 }
-
 
 func calcRetryDelay(retry int) time.Duration {
 	delay := float64(BaseRetryDelay) * math.Pow(2, float64(retry-1))
@@ -234,10 +265,4 @@ func calcRetryDelay(retry int) time.Duration {
 	}
 
 	return time.Duration(delay)
-}
-
-
-func sendNotification(n storage.Notification) error {
-	log.Printf("Sending notification to %s: %s", n.Target, n.Message)
-	return nil
 }

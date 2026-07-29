@@ -1,17 +1,22 @@
+// Package config loads application configuration from environment variables and .env files.
 package config
 
 import (
-    "os"
-    "fmt"
-    "log"
-    
-    "github.com/joho/godotenv"
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/joho/godotenv"
 )
 
+// Config holds all application configuration values.
 type Config struct {
-    HTTPPort string
-    DB_DSN   string
-    RabbitURL string
+	// HTTPPort is the port the HTTP server listens on.
+	HTTPPort string
+	// DB_DSN is the PostgreSQL connection string.
+	DB_DSN string
+	// RabbitURL is the RabbitMQ connection URL.
+	RabbitURL string
 }
 
 func getEnv(key string) (string, error) {
@@ -22,15 +27,16 @@ func getEnv(key string) (string, error) {
 	return val, nil
 }
 
+// Load reads configuration from the environment and returns Config.
 func Load() (*Config, error) {
 	if err := godotenv.Load(); err != nil {
 		log.Println(".env not found")
 	}
 
-	port := os.Getenv("HTTP_PORT") 
-    if port == "" { 
-        port = "8080" 
-    }
+	port := os.Getenv("HTTP_PORT")
+	if port == "" {
+		port = "8080"
+	}
 
 	dbUser, err := getEnv("DB_USER")
 	if err != nil {
@@ -79,8 +85,8 @@ func Load() (*Config, error) {
 	)
 
 	return &Config{
-		HTTPPort: port,
-		DB_DSN:   dsn,
+		HTTPPort:  port,
+		DB_DSN:    dsn,
 		RabbitURL: rurl,
 	}, nil
 }

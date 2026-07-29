@@ -9,40 +9,39 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 
 	"github.com/venexene/wbl3-delayed-notifier/internal/config"
-	"github.com/venexene/wbl3-delayed-notifier/internal/storage"
+	"github.com/venexene/wbl3-delayed-notifier/internal/handler"
 	"github.com/venexene/wbl3-delayed-notifier/internal/queue"
+	"github.com/venexene/wbl3-delayed-notifier/internal/storage"
 )
-
 
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		log.Fatalf("failed to load config: %v", err)
 	}
 
 	ctx := context.Background()
 
 	db, err := storage.New(ctx, cfg.DB_DSN)
 	if err != nil {
-		log.Fatalf("Failed to connect to DB: %v", err)
+		log.Fatalf("failed to connect to DB: %v", err)
 	}
 	defer db.Pool.Close()
 
 	rabbit, err := queue.New(cfg.RabbitURL)
 	if err != nil {
-		log.Fatalf("Failed to connect to RabbitMQ: %v", err)
+		log.Fatalf("failed to connect to RabbitMQ: %v", err)
 	}
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.Default()
 
-	router.GET("/test_server", testHandler)
-	router.POST("/notify", createNotification(db, rabbit))
-	router.GET("/notify/:id", getNotificationStatus(db))
-	router.DELETE("/notify/:id", cancelNotification(db))
+	router.GET("/test_server", handler.HealthCheck)
+	router.POST("/notify", handler.CreateNotification(db, rabbit))
+	router.GET("/notify/:id", handler.GetNotificationStatus(db))
+	router.DELETE("/notify/:id", handler.CancelNotification(db))
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.HTTPPort,
@@ -50,16 +49,17 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("Server starting on http://localhost%s\n", srv.Addr)
+		log.Printf("server starting on http://localhost%s\n", srv.Addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			log.Fatalf("failed to start server: %v", err)
 		}
 	}()
 
 	ctxStop, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	go rabbit.Consume(ctxStop, db)
+	notifier := queue.LogNotifier{}
+	go rabbit.Consume(ctxStop, db, notifier)
 
 	<-ctxStop.Done()
 	log.Println("Shutting down server...")
@@ -68,86 +68,8 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctxShutdown); err != nil {
-		log.Fatalf("Failed to shutdown server: %v", err)
+		log.Fatalf("failed to shutdown server: %v", err)
 	}
 
 	log.Println("Server shutdown completed")
-}
-
-
-func testHandler(c *gin.Context) {
-	c.String(http.StatusOK, "Hello! Server is running. Time: %s", time.Now().Format(time.RFC1123))
-}
-
-
-func createNotification(db *storage.Postgres, q *queue.RabbitMQ) gin.HandlerFunc {
-	type CreateRequest struct {
-		Target  string    `json:"target"`
-		Message string    `json:"message"`
-		SendAt  time.Time `json:"send_at"`
-	}
-
-	return func(c *gin.Context) {
-		var req CreateRequest
-
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-			return
-		}
-
-		n := storage.Notification{
-			ID:      uuid.New().String(),
-			Target:  req.Target,
-			Message: req.Message,
-			SendAt:  req.SendAt,
-			Status:  "pending",
-		}
-
-		if err := db.Create(c, n); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		if err := q.Publish(n); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"id": n.ID})
-	}
-}
-
-
-func getNotificationStatus(db *storage.Postgres) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		id := c.Param("id")
-
-		n, err := db.GetByID(c, id)
-		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
-			return
-		}
-
-		c.JSON(http.StatusOK, n)
-	}
-}
-
-
-func cancelNotification(db *storage.Postgres) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		id := c.Param("id")
-
-		ok, err := db.Cancel(c, id)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-
-		if !ok {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "cannot cancel"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"status": "canceled"})
-	}
 }
