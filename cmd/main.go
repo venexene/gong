@@ -13,7 +13,7 @@ import (
 	"github.com/venexene/gong/internal/config"
 	"github.com/venexene/gong/internal/handler"
 	"github.com/venexene/gong/internal/queue"
-	"github.com/venexene/gong/internal/storage"
+	"github.com/venexene/gong/internal/repository"
 )
 
 func main() {
@@ -24,7 +24,7 @@ func main() {
 
 	ctx := context.Background()
 
-	db, err := storage.New(ctx, cfg.DB_DSN)
+	db, err := repository.New(ctx, cfg.DB_DSN)
 	if err != nil {
 		log.Fatalf("failed to connect to DB: %v", err)
 	}

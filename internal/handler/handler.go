@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/venexene/gong/internal/queue"
-	"github.com/venexene/gong/internal/storage"
+	"github.com/venexene/gong/internal/repository"
 )
 
 // HealthCheck returns a simple health-check response.
@@ -18,7 +18,7 @@ func HealthCheck(c *gin.Context) {
 }
 
 // CreateNotification creates a delayed notification.
-func CreateNotification(db storage.Store, q queue.Publisher) gin.HandlerFunc {
+func CreateNotification(db repository.Store, q queue.Publisher) gin.HandlerFunc {
 	type CreateRequest struct {
 		Target  string    `json:"target"`
 		Message string    `json:"message"`
@@ -33,7 +33,7 @@ func CreateNotification(db storage.Store, q queue.Publisher) gin.HandlerFunc {
 			return
 		}
 
-		n := storage.Notification{
+		n := repository.Notification{
 			ID:      uuid.New().String(),
 			Target:  req.Target,
 			Message: req.Message,
@@ -56,7 +56,7 @@ func CreateNotification(db storage.Store, q queue.Publisher) gin.HandlerFunc {
 }
 
 // GetNotificationStatus returns notification by id.
-func GetNotificationStatus(db storage.Store) gin.HandlerFunc {
+func GetNotificationStatus(db repository.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 
@@ -71,7 +71,7 @@ func GetNotificationStatus(db storage.Store) gin.HandlerFunc {
 }
 
 // CancelNotification cancels a pending notification.
-func CancelNotification(db storage.Store) gin.HandlerFunc {
+func CancelNotification(db repository.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
 

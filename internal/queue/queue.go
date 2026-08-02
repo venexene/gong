@@ -11,24 +11,24 @@ import (
 
 	amqp "github.com/rabbitmq/amqp091-go"
 
-	"github.com/venexene/gong/internal/storage"
+	"github.com/venexene/gong/internal/repository"
 )
 
 // Publisher enqueues a notification for delayed delivery.
 type Publisher interface {
-	Publish(n storage.Notification) error
+	Publish(n repository.Notification) error
 }
 
 // Notifier delivers a notification through a specific channel.
 type Notifier interface {
-	Send(n storage.Notification) error
+	Send(n repository.Notification) error
 }
 
 // LogNotifier is a Notifier that logs the notification to stdout.
 type LogNotifier struct{}
 
 // Send logs the notification details and always returns nil.
-func (l LogNotifier) Send(n storage.Notification) error {
+func (l LogNotifier) Send(n repository.Notification) error {
 	log.Printf("[SENT] target=%s message=%s id=%s", n.Target, n.Message, n.ID)
 	return nil
 }
@@ -117,7 +117,7 @@ func New(url string) (*RabbitMQ, error) {
 }
 
 // Publish enqueues a notification for delayed delivery.
-func (r *RabbitMQ) Publish(n storage.Notification) error {
+func (r *RabbitMQ) Publish(n repository.Notification) error {
 	body, err := json.Marshal(n)
 	if err != nil {
 		return err
@@ -142,7 +142,7 @@ func (r *RabbitMQ) Publish(n storage.Notification) error {
 }
 
 // PublishRetry enqueues a failed notification for retry with exponential backoff.
-func (r *RabbitMQ) PublishRetry(n storage.Notification, retry int) error {
+func (r *RabbitMQ) PublishRetry(n repository.Notification, retry int) error {
 	body, err := json.Marshal(n)
 	if err != nil {
 		return err
@@ -166,7 +166,7 @@ func (r *RabbitMQ) PublishRetry(n storage.Notification, retry int) error {
 }
 
 // Consume starts a blocking message consumer on the main queue.
-func (r *RabbitMQ) Consume(ctx context.Context, db *storage.Postgres, notifier Notifier) {
+func (r *RabbitMQ) Consume(ctx context.Context, db *repository.Postgres, notifier Notifier) {
 	msgs, err := r.Channel.Consume(
 		r.MainQueue.Name,
 		"",
@@ -194,7 +194,7 @@ func (r *RabbitMQ) Consume(ctx context.Context, db *storage.Postgres, notifier N
 				return
 			}
 
-			var n storage.Notification
+			var n repository.Notification
 			if err := json.Unmarshal(msg.Body, &n); err != nil {
 				log.Println("Invalid message body")
 				msg.Nack(false, false)

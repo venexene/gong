@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/venexene/gong/internal/storage"
+	"github.com/venexene/gong/internal/repository"
 )
 
 func TestCalcRetryDelay(t *testing.T) {
@@ -37,7 +37,7 @@ func TestCalcRetryDelay(t *testing.T) {
 }
 
 func TestLogNotifierSend(t *testing.T) {
-	n := storage.Notification{
+	n := repository.Notification{
 		ID:      "test-id",
 		Target:  "user@example.com",
 		Message: "Hello, world!",
@@ -54,7 +54,7 @@ func TestLogNotifierSend(t *testing.T) {
 func TestNotifierInterface(t *testing.T) {
 	errNotifier := &errorNotifier{}
 
-	n := storage.Notification{
+	n := repository.Notification{
 		ID:     "err-id",
 		Target: "fail@test.com",
 	}
@@ -67,6 +67,6 @@ func TestNotifierInterface(t *testing.T) {
 
 type errorNotifier struct{}
 
-func (e *errorNotifier) Send(n storage.Notification) error {
+func (e *errorNotifier) Send(n repository.Notification) error {
 	return errors.New("send failed")
 }

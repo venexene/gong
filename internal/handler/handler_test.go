@@ -12,7 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/venexene/gong/internal/storage"
+	"github.com/venexene/gong/internal/repository"
 )
 
 func init() {
@@ -20,16 +20,16 @@ func init() {
 }
 
 type mockStore struct {
-	createFn  func(ctx context.Context, n storage.Notification) error
-	getByIDFn func(ctx context.Context, id string) (*storage.Notification, error)
+	createFn  func(ctx context.Context, n repository.Notification) error
+	getByIDFn func(ctx context.Context, id string) (*repository.Notification, error)
 	cancelFn  func(ctx context.Context, id string) (bool, error)
 }
 
-func (m *mockStore) Create(ctx context.Context, n storage.Notification) error {
+func (m *mockStore) Create(ctx context.Context, n repository.Notification) error {
 	return m.createFn(ctx, n)
 }
 
-func (m *mockStore) GetByID(ctx context.Context, id string) (*storage.Notification, error) {
+func (m *mockStore) GetByID(ctx context.Context, id string) (*repository.Notification, error) {
 	return m.getByIDFn(ctx, id)
 }
 
@@ -38,10 +38,10 @@ func (m *mockStore) Cancel(ctx context.Context, id string) (bool, error) {
 }
 
 type mockPublisher struct {
-	publishFn func(n storage.Notification) error
+	publishFn func(n repository.Notification) error
 }
 
-func (m *mockPublisher) Publish(n storage.Notification) error {
+func (m *mockPublisher) Publish(n repository.Notification) error {
 	return m.publishFn(n)
 }
 
@@ -77,7 +77,7 @@ func TestHealthCheck(t *testing.T) {
 
 func TestCreateNotification_Success(t *testing.T) {
 	store := &mockStore{
-		createFn: func(ctx context.Context, n storage.Notification) error {
+		createFn: func(ctx context.Context, n repository.Notification) error {
 			if n.ID == "" {
 				t.Error("expected non-empty ID")
 			}
@@ -88,7 +88,7 @@ func TestCreateNotification_Success(t *testing.T) {
 		},
 	}
 	pub := &mockPublisher{
-		publishFn: func(n storage.Notification) error {
+		publishFn: func(n repository.Notification) error {
 			return nil
 		},
 	}
@@ -139,7 +139,7 @@ func TestCreateNotification_BadJSON(t *testing.T) {
 
 func TestCreateNotification_DBError(t *testing.T) {
 	store := &mockStore{
-		createFn: func(ctx context.Context, n storage.Notification) error {
+		createFn: func(ctx context.Context, n repository.Notification) error {
 			return errors.New("db error")
 		},
 	}
@@ -166,12 +166,12 @@ func TestCreateNotification_DBError(t *testing.T) {
 
 func TestCreateNotification_QueueError(t *testing.T) {
 	store := &mockStore{
-		createFn: func(ctx context.Context, n storage.Notification) error {
+		createFn: func(ctx context.Context, n repository.Notification) error {
 			return nil
 		},
 	}
 	pub := &mockPublisher{
-		publishFn: func(n storage.Notification) error {
+		publishFn: func(n repository.Notification) error {
 			return errors.New("queue error")
 		},
 	}
@@ -196,7 +196,7 @@ func TestCreateNotification_QueueError(t *testing.T) {
 }
 
 func TestGetNotificationStatus_Found(t *testing.T) {
-	expected := &storage.Notification{
+	expected := &repository.Notification{
 		ID:      "abc-123",
 		Target:  "user@test.com",
 		Message: "Hello",
@@ -204,7 +204,7 @@ func TestGetNotificationStatus_Found(t *testing.T) {
 	}
 
 	store := &mockStore{
-		getByIDFn: func(ctx context.Context, id string) (*storage.Notification, error) {
+		getByIDFn: func(ctx context.Context, id string) (*repository.Notification, error) {
 			if id != "abc-123" {
 				t.Errorf("expected id 'abc-123', got %q", id)
 			}
@@ -223,7 +223,7 @@ func TestGetNotificationStatus_Found(t *testing.T) {
 		t.Errorf("expected status 200, got %d", w.Code)
 	}
 
-	var got storage.Notification
+	var got repository.Notification
 	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
 		t.Fatalf("failed to unmarshal: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestGetNotificationStatus_Found(t *testing.T) {
 
 func TestGetNotificationStatus_NotFound(t *testing.T) {
 	store := &mockStore{
-		getByIDFn: func(ctx context.Context, id string) (*storage.Notification, error) {
+		getByIDFn: func(ctx context.Context, id string) (*repository.Notification, error) {
 			return nil, errors.New("not found")
 		},
 	}

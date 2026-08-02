@@ -66,6 +66,6 @@ cmd/main.go              entry point
 internal/
   handler/               HTTP handlers
   queue/                 RabbitMQ queues, consumer, retry logic
-  storage/               PostgreSQL store
+  repository/               PostgreSQL store
   config/                env config
 ```

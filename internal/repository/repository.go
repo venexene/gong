@@ -1,5 +1,5 @@
-// Package storage provides a PostgreSQL-backed notification store.
-package storage
+// Package repository provides a PostgreSQL-backed notification store.
+package repository
 
 import (
 	"context"
