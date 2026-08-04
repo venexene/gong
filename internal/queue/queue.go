@@ -205,19 +205,19 @@ func (r *RabbitMQ) Consume(ctx context.Context, db *repository.Postgres, notifie
 			var n repository.Notification
 			if err := json.Unmarshal(msg.Body, &n); err != nil {
 				log.Println("Invalid message body")
-				msg.Nack(false, false)
+				nack(msg, false, false)
 				continue
 			}
 
 			current, err := db.GetByID(ctx, n.ID)
 			if err != nil {
 				log.Printf("Notification %s not found in DB", n.ID)
-				msg.Ack(false)
+				ack(msg, false)
 				continue
 			}
 
 			if current.Status == "canceled" || current.Status == "sent" {
-				msg.Ack(false)
+				ack(msg, false)
 				continue
 			}
 
@@ -226,13 +226,13 @@ func (r *RabbitMQ) Consume(ctx context.Context, db *repository.Postgres, notifie
 				if err := db.MarkFailed(ctx, n.ID); err != nil {
 					log.Printf("DB MarkFailed error: %v", err)
 				}
-				msg.Ack(false)
+				ack(msg, false)
 				continue
 			}
 
 			if err := db.MarkProcessing(ctx, n.ID); err != nil {
 				log.Printf("Cannot mark processing: %v", err)
-				msg.Nack(false, true)
+				nack(msg, false, true)
 				continue
 			}
 
@@ -244,15 +244,15 @@ func (r *RabbitMQ) Consume(ctx context.Context, db *repository.Postgres, notifie
 				updated, err := db.GetByID(ctx, n.ID)
 				if err != nil {
 					log.Printf("DB GetByID error: %v", err)
-					msg.Nack(false, true)
+					nack(msg, false, true)
 					continue
 				}
 				if err := r.PublishRetry(*updated, updated.Retry); err != nil {
 					log.Printf("PublishRetry error (will requeue): %v", err)
-					msg.Nack(false, true)
+					nack(msg, false, true)
 					continue
 				}
-				msg.Ack(false)
+				ack(msg, false)
 				continue
 			}
 
@@ -260,12 +260,11 @@ func (r *RabbitMQ) Consume(ctx context.Context, db *repository.Postgres, notifie
 				log.Printf("DB MarkSent error: %v", err)
 			}
 
-			msg.Ack(false)
+			ack(msg, false)
 		}
 	}
 }
 
-// calcRetryDelay computes the exponential backoff delay for a given retry attempt.
 func calcRetryDelay(retry int) time.Duration {
 	delay := float64(BaseRetryDelay) * math.Pow(2, float64(retry-1))
 
@@ -274,4 +273,16 @@ func calcRetryDelay(retry int) time.Duration {
 	}
 
 	return time.Duration(delay)
+}
+
+func nack(msg amqp.Delivery, multiple, requeue bool) {
+	if err := msg.Nack(multiple, requeue); err != nil {
+		log.Printf("msg.Nack error: %v", err)
+	}
+}
+
+func ack(msg amqp.Delivery, multiple bool) {
+	if err := msg.Ack(multiple); err != nil {
+		log.Printf("msg.Ack error: %v", err)
+	}
 }
