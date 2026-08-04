@@ -1,3 +1,5 @@
+// Gong is an HTTP service that accepts delayed notifications and delivers them
+// at the specified time via RabbitMQ TTL + dead-letter exchange.
 package main
 
 import (

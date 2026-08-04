@@ -17,7 +17,7 @@ func HealthCheck(c *gin.Context) {
 	c.String(http.StatusOK, "Hello! Server is running. Time: %s", time.Now().Format(time.RFC1123))
 }
 
-// CreateNotification creates a delayed notification.
+// CreateNotification returns a Gin handler that creates a delayed notification.
 func CreateNotification(db repository.Store, q queue.Publisher) gin.HandlerFunc {
 	type CreateRequest struct {
 		Target  string    `json:"target"`
@@ -55,7 +55,7 @@ func CreateNotification(db repository.Store, q queue.Publisher) gin.HandlerFunc 
 	}
 }
 
-// GetNotificationStatus returns notification by id.
+// GetNotificationStatus returns a Gin handler that retrieves a notification by its ID.
 func GetNotificationStatus(db repository.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")
@@ -70,7 +70,7 @@ func GetNotificationStatus(db repository.Store) gin.HandlerFunc {
 	}
 }
 
-// CancelNotification cancels a pending notification.
+// CancelNotification returns a Gin handler that cancels a pending notification.
 func CancelNotification(db repository.Store) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")

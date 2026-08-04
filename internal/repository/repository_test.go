@@ -40,7 +40,6 @@ func setupTestDB(t *testing.T) (*Postgres, func()) {
 		t.Fatalf("failed to connect to test db: %v", err)
 	}
 
-	// Create table
 	_, err = db.Pool.Exec(ctx, `
 		SET TIME ZONE 'UTC';
 		CREATE TABLE IF NOT EXISTS notifications (
@@ -89,7 +88,6 @@ func TestPostgres_Create(t *testing.T) {
 		t.Fatalf("Create() failed: %v", err)
 	}
 
-	// Verify it was created
 	got, err := db.GetByID(ctx, n.ID)
 	if err != nil {
 		t.Fatalf("GetByID() after Create failed: %v", err)
@@ -143,7 +141,6 @@ func TestPostgres_Cancel(t *testing.T) {
 		t.Error("expected Cancel to return true")
 	}
 
-	// Verify status changed
 	got, err := db.GetByID(ctx, n.ID)
 	if err != nil {
 		t.Fatalf("GetByID() after Cancel failed: %v", err)
@@ -275,7 +272,6 @@ func TestPostgres_IncrementRetry(t *testing.T) {
 		t.Fatalf("Create() failed: %v", err)
 	}
 
-	// Increment retry 3 times
 	for i := 1; i <= 3; i++ {
 		if err := db.IncrementRetry(ctx, n.ID); err != nil {
 			t.Fatalf("IncrementRetry() attempt %d failed: %v", i, err)
@@ -301,7 +297,6 @@ func TestPostgres_GetPending(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now().UTC()
 
-	// Past notification (should be returned)
 	past := Notification{
 		ID:      uuid.New().String(),
 		Target:  "past@example.com",
@@ -310,7 +305,6 @@ func TestPostgres_GetPending(t *testing.T) {
 		Status:  "pending",
 	}
 
-	// Future notification (should NOT be returned)
 	future := Notification{
 		ID:      uuid.New().String(),
 		Target:  "future@example.com",
@@ -319,7 +313,6 @@ func TestPostgres_GetPending(t *testing.T) {
 		Status:  "pending",
 	}
 
-	// Already sent notification (should NOT be returned)
 	sent := Notification{
 		ID:      uuid.New().String(),
 		Target:  "sent@example.com",
@@ -335,7 +328,6 @@ func TestPostgres_GetPending(t *testing.T) {
 		}
 	}
 
-	// Mark the sent one
 	if err := db.MarkSent(ctx, sent.ID); err != nil {
 		t.Fatalf("MarkSent() failed: %v", err)
 	}
@@ -355,6 +347,5 @@ func TestPostgres_GetPending(t *testing.T) {
 }
 
 func TestPostgres_StoreInterface(t *testing.T) {
-	// Compile-time check that Postgres satisfies Store
 	var _ Store = (*Postgres)(nil)
 }

@@ -19,6 +19,7 @@ type Config struct {
 	RabbitURL string
 }
 
+// getEnv reads an environment variable by key.
 func getEnv(key string) (string, error) {
 	val := os.Getenv(key)
 	if val == "" {
@@ -27,7 +28,7 @@ func getEnv(key string) (string, error) {
 	return val, nil
 }
 
-// Load reads configuration from the environment and returns Config.
+// Load reads configuration from environment variables
 func Load() (*Config, error) {
 	if err := godotenv.Load(); err != nil {
 		log.Println(".env not found")

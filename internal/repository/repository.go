@@ -8,10 +8,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Store is the minimal interface for notification persistence
+// Store is the minimal interface for notification persistence.
 type Store interface {
+	// Create inserts a new notification.
 	Create(ctx context.Context, n Notification) error
+	// GetByID retrieves a single notification by its ID.
 	GetByID(ctx context.Context, id string) (*Notification, error)
+	// Cancel marks a pending notification as canceled.
 	Cancel(ctx context.Context, id string) (bool, error)
 }
 
@@ -102,7 +105,8 @@ func (p *Postgres) Cancel(ctx context.Context, id string) (bool, error) {
 	return true, nil
 }
 
-// GetPending returns all notifications that are pending and whose send_at time has already passed
+// GetPending returns all notifications that are pending and whose send_at time
+// has already passed, ordered by send_at ascending.
 func (p *Postgres) GetPending(ctx context.Context) ([]Notification, error) {
 	rows, err := p.Pool.Query(ctx, `
         SELECT id, target, message, send_at, status, retry
@@ -132,7 +136,7 @@ func (p *Postgres) MarkSent(ctx context.Context, id string) error {
 	return err
 }
 
-// IncrementRetry bumps the retry counter and resets status to "pending"
+// IncrementRetry bumps the retry counter by one and resets the status to "pending".
 func (p *Postgres) IncrementRetry(ctx context.Context, id string) error {
 	_, err := p.Pool.Exec(ctx, `
         UPDATE notifications 

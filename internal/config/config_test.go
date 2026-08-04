@@ -35,7 +35,6 @@ func setAllRequired(t *testing.T) {
 }
 
 func TestLoad_Success(t *testing.T) {
-	// Clear any .env influence
 	unsetEnv(t,
 		"HTTP_PORT", "DB_USER", "DB_PASSWORD", "DB_HOST", "DB_PORT", "DB_NAME",
 		"RABBIT_USER", "RABBIT_PASSWORD", "RABBIT_HOST", "RABBIT_PORT",
@@ -73,7 +72,6 @@ func TestLoad_DefaultHTTPPort(t *testing.T) {
 		"RABBIT_USER", "RABBIT_PASSWORD", "RABBIT_HOST", "RABBIT_PORT",
 	)
 	setAllRequired(t)
-	// Do NOT set HTTP_PORT
 	defer unsetEnv(t,
 		"HTTP_PORT", "DB_USER", "DB_PASSWORD", "DB_HOST", "DB_PORT", "DB_NAME",
 		"RABBIT_USER", "RABBIT_PASSWORD", "RABBIT_HOST", "RABBIT_PORT",

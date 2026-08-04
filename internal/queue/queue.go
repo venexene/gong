@@ -34,12 +34,20 @@ func (l LogNotifier) Send(n repository.Notification) error {
 }
 
 // RabbitMQ manages AMQP queues for delayed and retried notifications.
+//
+// Queue topology:
+//
+//	notifications        – main processing queue consumed by the worker.
+//	notifications_delay  – TTL-based delay queue; expired messages are
+//	                        dead-lettered to the main queue.
+//	notifications_retry   – exponential backoff retry queue; expired messages
+//	                        are dead-lettered back to the main queue.
 type RabbitMQ struct {
 	Conn       *amqp.Connection
 	Channel    *amqp.Channel
-	MainQueue  amqp.Queue // notifications - processed by the consumer.
-	DelayQueue amqp.Queue // notifications_delay - TTL-based delay via DLX.
-	RetryQueue amqp.Queue // notifications_retry - exponential backoff via DLX.
+	MainQueue  amqp.Queue
+	DelayQueue amqp.Queue
+	RetryQueue amqp.Queue
 }
 
 const (
@@ -257,6 +265,7 @@ func (r *RabbitMQ) Consume(ctx context.Context, db *repository.Postgres, notifie
 	}
 }
 
+// calcRetryDelay computes the exponential backoff delay for a given retry attempt.
 func calcRetryDelay(retry int) time.Duration {
 	delay := float64(BaseRetryDelay) * math.Pow(2, float64(retry-1))
 
