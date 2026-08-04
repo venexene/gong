@@ -30,7 +30,7 @@ func Run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	db, err := repository.New(ctx, cfg.DB_DSN)
+	db, err := repository.New(ctx, cfg.DBDSN)
 	if err != nil {
 		log.Printf("failed to create repository: %v", err)
 		return fmt.Errorf("failed to create repository: %w", err)

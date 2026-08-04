@@ -13,8 +13,8 @@ import (
 type Config struct {
 	// HTTPPort is the port the HTTP server listens on.
 	HTTPPort string
-	// DB_DSN is the PostgreSQL connection string.
-	DB_DSN string
+	// DBDSN is the PostgreSQL connection string.
+	DBDSN string
 	// RabbitURL is the RabbitMQ connection URL.
 	RabbitURL string
 }
@@ -87,7 +87,7 @@ func Load() (*Config, error) {
 
 	return &Config{
 		HTTPPort:  port,
-		DB_DSN:    dsn,
+		DBDSN:     dsn,
 		RabbitURL: rurl,
 	}, nil
 }

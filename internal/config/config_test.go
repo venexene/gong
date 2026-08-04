@@ -56,8 +56,8 @@ func TestLoad_Success(t *testing.T) {
 	}
 
 	expectedDSN := "postgres://testuser:testpass@localhost:5432/gong"
-	if cfg.DB_DSN != expectedDSN {
-		t.Errorf("expected DB_DSN %q, got %q", expectedDSN, cfg.DB_DSN)
+	if cfg.DBDSN != expectedDSN {
+		t.Errorf("expected DB_DSN %q, got %q", expectedDSN, cfg.DBDSN)
 	}
 
 	expectedRabbitURL := "amqp://guest:guest@localhost:5672/"
@@ -274,8 +274,8 @@ func TestLoad_DSNFormat(t *testing.T) {
 	}
 
 	expectedDSN := "postgres://admin:s3cr3t!@db.example.com:5433/gong_prod"
-	if cfg.DB_DSN != expectedDSN {
-		t.Errorf("expected DB_DSN %q, got %q", expectedDSN, cfg.DB_DSN)
+	if cfg.DBDSN != expectedDSN {
+		t.Errorf("expected DB_DSN %q, got %q", expectedDSN, cfg.DBDSN)
 	}
 
 	expectedRabbitURL := "amqp://rbuser:rbpass@mq.example.com:5673/"
